@@ -1,3 +1,5 @@
+from datetime import date
+import re
 import traceback
 from typing import Optional
 
@@ -37,7 +39,7 @@ def get_passwd_hash(passwd):
 
 
 @userRouter.post('/create', tags=['users'])
-def create_user(user: UserCreate, db: Session = Depends(get_db())):
+def create_user(user: UserCreate, db: Session = Depends(get_db)):
     log.info("创建用户")
     if len(user.username) < 8 or len(user.username) > 16:
         return response(code=100106, message="用户名长度应该是8-16位", data="")
@@ -52,7 +54,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db())):
         return response(code=100105, data="", message="密码加密失败")
     try:
         user = db_create_user(db=db, user=user)
-        log.success("创建用户成功")
+        log.info("创建用户成功")
         return response(code=200, data={'user': user.username}, message="success")
     except Exception as e:
         log.exception(e)
@@ -70,7 +72,7 @@ def create_access_token(data: dict):
     return encode_jwt
 
 
-async def get_curr_user(request: Request, token: Optional[str] = Header(...), db: Session = Depends(get_db())):
+async def get_curr_user(request: Request, token: Optional[str] = Header(...), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="验证失败"
@@ -95,7 +97,7 @@ async def get_curr_user(request: Request, token: Optional[str] = Header(...), db
 
 
 @userRouter.post('/login')
-async def login(request: Request, user: UserLogin, db: Session = Depends(get_db())):
+async def login(request: Request, user: UserLogin, db: Session = Depends(get_db)):
     db_user = get_user_by_name(db, user.username)
     if not db_user:
         log.info("login:" + user.username + "不存在")
@@ -110,18 +112,53 @@ async def login(request: Request, user: UserLogin, db: Session = Depends(get_db(
                 log.exception(e)
                 return response(code=100203, message='产生token失败', data='')
             request.app.state.redis.set(user.username, token, expire=expire_time * 10)
+            return response(code=200, message='成功', data={'token': token})
+        return response(code=200, message='成功', data={'token': user_is})
+    else:
+        result = await request.app.state.redis.hgetall(user.username + "_password", encodeing='utf8')
+        if not result:
+            times = datetime.strftime(datetime.now(), "%Y-%m-%d %H:%M:%S")
+            request.app.state.redis.hmset_dict(user.username + '_password', num=0, time=times)
+            return response(code=100206, message="密码错误", data='')
+        else:
+            errornum = int(result['num'])
+            numtime = (datetime.now() - datetime.strptime(result['time'], "%Y-%m-%d %H:%M:%S")).seconds / 60
+            if errornum < 10 and numtime < 30:
+                # 输入错误10次可以重试 错误次数加一
+                errornum += 1
+                request.app.state.redis.hmset_dict(user.username + '_password', num=errornum)
+                return response(code=100206, message='密码错误')
+            elif errornum < 10 and numtime > 30:
+                errornum = 1
+                times = datetime.strftime(datetime.now(), '"%Y-%m-%d %H:%M:%S')
+                request.app.state.redis.hmset_dict(user.username + '_password', num=errornum, time=times)
+                return response(code=100206, message='密码错误')
+            elif errornum > 10 and numtime < 30:
+                # 次数超过10次就锁账号
+                errornum += 1
+                request.app.state.redis.hmset_dict(user.username + '_password', num=errornum)
+                return response(code=100204, message='输入密码次数过多，账号暂时锁定，请30分钟后在重试', data='')
+            else:
+                errornum = 1
+                times = datetime.strftime(datetime.now(), '"%Y-%m-%d %H:%M:%S')
+                request.app.state.redis.hmset_dict(user.username + '_password', num=errornum, time=times)
+                return response(code=200, message='密码错误', data='')
 
 
-@userRouter.get('/{user_id}')
-def get_user(user_id: int, db: Session = Depends(get_db)):
-    db_user = get_user_by_id(db, user_id)
-    print(db_user)
-    if db_user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail='user not exist'
-        )
-    return db_user
+@userRouter.get('/getcuruser', response_model=UserBase)
+async def getcuruser(user=Depends(get_curr_user)):
+    return response(code=200, message='success', data=user)
+
+# @userRouter.get('/{user_id}')
+# def get_user(user_id: int, db: Session = Depends(get_db)):
+#     db_user = get_user_by_id(db, user_id)
+#     print(db_user)
+#     if db_user is None:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail='user not exist'
+#         )
+#     return db_user
 
 # @userRouter.post('/create')
 # def create_users(user: UserCreate, db: Session = Depends(get_db)):

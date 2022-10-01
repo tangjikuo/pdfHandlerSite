@@ -12,7 +12,7 @@ def get_config_dict(path, env):
     return conf[env]
 
 
-async def get_db():
+def get_db():
     db = SessionLocal()
     try:
         yield db
@@ -23,7 +23,7 @@ async def get_db():
 def get_config(route: str):
     """获取config.yaml中的参数 通过以下方式获取：
     example: get_config('env.mysql.host') 获取mysql的host"""
-    with open(CONFIG_PATH, 'rt') as f:
+    with open(CONFIG_PATH, 'rt', encoding='utf8') as f:
         config = yaml.safe_load(f.read())
         try:
             route_list = route.split('.')

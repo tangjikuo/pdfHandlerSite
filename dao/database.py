@@ -3,7 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 
-SQLALCHEMY_DATABASE_URL = 'mysql+pymysql://root:123456@192.168.10.166:3306/testdb'
+SQLALCHEMY_DATABASE_URL = 'mysql+pymysql://root:123456@10.0.0.5:3306/testdb'
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, encoding='utf8', echo=True)
 

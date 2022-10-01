@@ -1,3 +1,4 @@
+from sqlalchemy import true
 import uvicorn
 from fastapi import FastAPI, Request
 import aioredis
@@ -10,18 +11,21 @@ from router.user import userRouter
 app = FastAPI()
 
 
-def register_redis(app: FastAPI):
-    @app.on_event('startup')
-    async def startup_event():
-        app.state.redis = await aioredis.from_url('redis://192.168.10.166', db=0)
-
-    @app.on_event('shutdown')
-    async def shutdown_event():
-        app.state.redis.close()
-        await app.state.redis.wait_closed()
+async def get_redis_pool():
+    redis = await aioredis.from_url(url='redis://:123456@10.0.0.5:6379', db=0)
+    return redis
 
 
-register_redis(app)
+@app.on_event('startup')
+async def startup_event():
+    app.state.redis = await get_redis_pool()
+    app.state.redis.set('token', '123456', expire=30)
+
+
+@app.on_event('shutdown')
+async def shutdown_event():
+    app.state.redis.close()
+    await app.state.redis.wait_closed()
 
 
 @app.exception_handler(RequestValidationError)
@@ -34,4 +38,4 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 app.include_router(userRouter, prefix='/user', tags=['users'])
 
 if __name__ == '__main__':
-    uvicorn.run(app, host='127.0.0.1', port=8999)
+    uvicorn.run(app="main:app", host="127.0.0.1", port=8999, debug=true, reload=true)
