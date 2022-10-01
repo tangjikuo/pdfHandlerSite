@@ -14,7 +14,7 @@ def get_user_by_name(db: Session, name: str):
     return db.query(User).filter(User.username == name).first()
 
 
-def create_user(db: Session, user: UserCreate):
+def db_create_user(db: Session, user: UserCreate):
     db_user = User(**user.dict())
     db.add(db_user)
     db.commit()

@@ -41,3 +41,34 @@ secret:
    SECRET_KEY: "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
    ALGORITHM: "HS256"
    ACCESS_TOKEN_EXPIRE_MINUTES: 30
+
+logConfig:  # 日志的配置文件
+  version: 1
+  formatters:
+    ft:
+      format: '%(asctime)s-%(name)s-%(levelname)s-%(message)s'
+  handlers:
+    file:
+      class: logging.handlers.RotatingFileHandler
+      formatter: ft
+      maxBytes: 10485760
+      backupCount: 2
+      filename: ./logs/test-info.log
+      level: DEBUG
+      encoding: utf8
+
+    console:
+      class: logging.StreamHandler
+      level: DEBUG
+      formatter: ft
+      stream: ext://sys.stdout
+
+  loggers:
+    server:
+      level: DEBUG
+      handlers: [file]
+      propagate: true
+
+  root:
+    level: DEBUG
+    handlers: [console]
